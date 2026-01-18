@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prime Taxis Farnham | Online Booking</title>
+
+  <!-- Google Maps API -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBGouTX6IUvnSnZ0Tyo5alN3K_c2Q1OE-A&libraries=places"></script>
+
+  <!-- EmailJS -->
+  <script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+
+  <style>
+    body { margin:0; font-family: Arial, sans-serif; background:#f6f8fb; }
+    .container { max-width:760px; margin:auto; padding:16px; }
+    .card { background:#fff; border-radius:14px; padding:18px; box-shadow:0 6px 20px rgba(0,0,0,.08); }
+    header { text-align:center; margin-bottom:16px; }
+    header img { max-width:140px; }
+    h1 { margin:8px 0; }
+    label { font-weight:600; margin-bottom:6px; display:block; }
+    input, select { width:100%; padding:12px; border-radius:10px; border:1px solid #ccc; margin-bottom:12px; }
+    .row { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .btn { width:100%; padding:14px; background:#000; color:#fff; border:none; border-radius:12px; font-size:16px; cursor:pointer; margin-bottom:10px; }
+    .btn.whatsapp { background:#25D366; }
+    .quick { display:flex; gap:10px; margin-bottom:12px; }
+    .quick button { flex:1; padding:10px; border-radius:10px; border:1px solid #ccc; cursor:pointer; }
+    .fare { background:#eef4ff; padding:14px; border-radius:12px; text-align:center; font-size:18px; display:none; margin-bottom:12px; }
+    .note { font-size:12px; text-align:center; color:#666; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="card">
+    <header>
+      <img src="/mnt/data/23A1DB80-CD92-4C25-A442-3C288420B363.jpeg" alt="Prime Taxis Farnham">
+      <h1>Book Your Taxi</h1>
+    </header>
+
+    <div class="quick">
+      <button onclick="setAirport('Heathrow Airport',87)">Heathrow £87</button>
+      <button onclick="setAirport('Gatwick Airport',110)">Gatwick £110</button>
+    </div>
+
+    <label>Pickup location</label>
+    <input id="pickup" />
+
+    <label>Drop-off location</label>
+    <input id="dropoff" />
+
+    <div class="row">
+      <div>
+        <label>Date</label>
+        <input type="date" id="date" />
+      </div>
+      <div>
+        <label>Time</label>
+        <input type="time" id="time" />
+      </div>
+    </div>
+
+    <label>Return journey?</label>
+    <select id="return">
+      <option value="No">No</option>
+      <option value="Yes">Yes</option>
+    </select>
+
+    <label>Flight number (optional)</label>
+    <input id="flight" />
+
+    <button class="btn" onclick="calculateFare()">Calculate Fare</button>
+
+    <div class="fare" id="fareBox">
+      Estimated Fare: <strong>£<span id="fare"></span></strong><br>
+      Booking Ref: <strong><span id="ref"></span></strong>
+    </div>
+
+    <button class="btn whatsapp" onclick="submitBooking()">Confirm & Book</button>
+
+    <p class="note">Night charges apply between 23:00 – 07:00</p>
+  </div>
+</div>
+
+<script>
+  // ===== SAFE ELEMENT REFERENCES =====
+  const el = id => document.getElementById(id);
+
+  let distanceService;
+  let fixedFare = null;
+
+  // ===== INIT =====
+  window.addEventListener('load', () => {
+    // Google Sites safe init
+    if (window.google && google.maps && google.maps.places) {
+      new google.maps.places.Autocomplete(el('pickup'), { types: ['geocode'] });
+      new google.maps.places.Autocomplete(el('dropoff'), { types: ['geocode'] });
+      distanceService = new google.maps.DistanceMatrixService();
+    } else {
+      console.warn('Google Maps not ready yet');
+    }
+  });
+      new google.maps.places.Autocomplete(el('dropoff'));
+      distanceService = new google.maps.DistanceMatrixService();
+      console.log('Google Maps loaded');
+    } catch (e) {
+      alert('Google Maps failed to load');
+    }
+  });
+
+  // ===== AIRPORT BUTTONS =====
+  function setAirport(name, price) {
+    fixedFare = price;
+    el('dropoff').value = name;
+    showFare(price);
+  }
+
+  // ===== FARE CALCULATION =====
+  function calculateFare() {
+    alert('Calculate Fare clicked');
+
+    const pickup = el('pickup').value;
+    const dropoff = el('dropoff').value;
+    const time = el('time').value;
+    const isReturn = el('returnTrip').value === 'Yes';
+
+    if (!pickup || !dropoff || !time) {
+      alert('Please complete pickup, drop-off and time');
+      return;
+    }
+
+    // Fixed airport fare
+    if (fixedFare !== null) {
+      let fare = fixedFare;
+      if (isReturn) fare *= 2;
+      if (time >= '23:00' || time <= '07:00') fare *= 1.5;
+      showFare(fare);
+      return;
+    }
+
+    // Distance-based fare
+    distanceService.getDistanceMatrix({
+      origins: [pickup],
+      destinations: [dropoff],
+      travelMode: google.maps.TravelMode.DRIVING,
+      unitSystem: google.maps.UnitSystem.IMPERIAL
+    }, (res, status) => {
+      if (status !== 'OK') {
+        alert('Distance calculation failed');
+        return;
+      }
+
+      const meters = res.rows[0].elements[0].distance.value;
+      let miles = meters / 1609.34;
+      let fare = miles * 3;
+
+      if (isReturn) fare *= 2;
+      if (time >= '23:00' || time <= '07:00') fare *= 1.5;
+
+      showFare(fare);
+    });
+  }
+
+  // ===== DISPLAY FARE =====
+  function showFare(amount) {
+    el('fare').innerText = amount.toFixed(2);
+    el('ref').innerText = 'PTF-' + Math.floor(100000 + Math.random() * 900000);
+    el('fareBox').style.display = 'block';
+  }
+
+  // ===== SUBMIT BOOKING =====
+  function submitBooking() {
+    alert('Confirm & Book clicked');
+
+    const data = {
+      pickup: el('pickup').value,
+      dropoff: el('dropoff').value,
+      date: el('date').value,
+      time: el('time').value,
+      returnTrip: el('returnTrip').value,
+      flight: el('flight').value,
+      fare: el('fare').innerText,
+      ref: el('ref').innerText
+    };
+
+    emailjs.send('service_z6dbduo', 'template_egracr1', data)
+      .then(() => console.log('Email sent'))
+      .catch(() => alert('Email failed'));
+
+    const msg = `Prime Taxis Booking%0ARef: ${data.ref}%0AFrom: ${data.pickup}%0ATo: ${data.dropoff}%0ADate: ${data.date}%0ATime: ${data.time}%0AReturn: ${data.returnTrip}%0AFlight: ${data.flight}%0AFare: £${data.fare}`;
+
+    window.open('https://wa.me/441252507777?text=' + msg, '_blank');
+  }
+</script>
+
+</body>
+</html>
